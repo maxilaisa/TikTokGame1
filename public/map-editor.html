@@ -12,7 +12,9 @@
 
     <aside id="editor-panel">
       <h1>Turret editor</h1>
-      <p class="editor-lead">Place <strong>defending</strong> (outer) and <strong>main</strong> (inner) turrets. Coords are 1920×1080.</p>
+      <p class="editor-lead">
+        Per lane: <strong>2 defend</strong> + <strong>1 last</strong>. Plus <strong>base</strong> at nexus (lane = base).
+      </p>
 
       <div class="coord-box">
         <div>Cursor</div>
@@ -24,25 +26,30 @@
       </div>
 
       <fieldset>
-        <legend>Lane</legend>
+        <legend>Lane (for defend / last)</legend>
         <div class="lane-btns">
           <button type="button" class="lane-btn active" data-lane="top">Top</button>
           <button type="button" class="lane-btn" data-lane="mid">Mid</button>
           <button type="button" class="lane-btn" data-lane="bot">Bot</button>
+          <button type="button" class="lane-btn" data-lane="base">Base</button>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Place turret (click map)</legend>
-        <button type="button" class="place-btn" data-mode="blue-defend">Blue defend</button>
-        <button type="button" class="place-btn" data-mode="blue-main">Blue main</button>
-        <button type="button" class="place-btn" data-mode="red-defend">Red defend</button>
-        <button type="button" class="place-btn active" data-mode="red-main">Red main</button>
+        <legend>Place turret</legend>
+        <button type="button" class="place-btn" data-mode="blue-defend1">Blue defend 1</button>
+        <button type="button" class="place-btn" data-mode="blue-defend2">Blue defend 2</button>
+        <button type="button" class="place-btn" data-mode="blue-last">Blue last</button>
+        <button type="button" class="place-btn" data-mode="blue-base">Blue base</button>
+        <button type="button" class="place-btn" data-mode="red-defend1">Red defend 1</button>
+        <button type="button" class="place-btn" data-mode="red-defend2">Red defend 2</button>
+        <button type="button" class="place-btn active" data-mode="red-last">Red last</button>
+        <button type="button" class="place-btn" data-mode="red-base">Red base</button>
       </fieldset>
 
       <div class="editor-actions">
         <button type="button" id="undo-btn">Undo last</button>
-        <button type="button" id="clear-btn">Clear all turrets</button>
+        <button type="button" id="clear-btn">Clear all</button>
       </div>
 
       <ul id="turret-list" class="point-list"></ul>
@@ -53,10 +60,8 @@
         <button type="button" id="reset-btn">Reset defaults</button>
       </div>
 
-      <label class="export-label" for="export-json">JSON (send to dev):</label>
-      <textarea id="export-json" readonly rows="10"></textarea>
+      <textarea id="export-json" readonly rows="8"></textarea>
       <button type="button" id="copy-btn">Copy JSON</button>
-
       <p class="editor-footer"><a href="/">← Back to game</a></p>
     </aside>
 

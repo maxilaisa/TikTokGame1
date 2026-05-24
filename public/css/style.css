@@ -65,6 +65,29 @@ body {
   text-align: right;
 }
 
+#game-over {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+#game-over[hidden] {
+  display: none;
+}
+
+#game-over-text {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffd56a;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.9);
+}
+
 #setup-panel {
   position: fixed;
   bottom: 24px;

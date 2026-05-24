@@ -79,9 +79,12 @@ canvas.addEventListener('click', (e) => {
   const { x, y } = canvasCoords(e.clientX, e.clientY);
   clickCoordsEl.textContent = `{ x: ${x}, y: ${y} }`;
 
-  const [team, type] = placeMode.split('-');
+  const parts = placeMode.split('-');
+  const team = parts[0];
+  const type = parts.slice(1).join('-');
+  const lane = type === 'base' ? 'base' : activeLane;
   if (!config.turrets) config.turrets = [];
-  config.turrets.push({ lane: activeLane, team, type, x, y });
+  config.turrets.push({ lane, team, type, x, y });
   refreshList();
   showToast(`Placed ${team} ${type} (${activeLane})`);
 });
@@ -110,7 +113,7 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   if (!confirm('Reset turrets to auto positions?')) return;
   RIFT_MAP.clear();
   config = RIFT_MAP.load();
-  config.turrets = RIFT_MAP.defaultTurretPlacements(RIFT_MAP.buildLanePaths(config));
+  config.turrets = RIFT_MAP.defaultTurretPlacements(config, RIFT_MAP.buildLanePaths(config));
   refreshList();
 });
 
@@ -132,22 +135,24 @@ function drawPaths() {
 }
 
 function drawTurretMarker(t) {
-  const isMain = t.type === 'main';
+  const isBase = t.type === 'base';
   const isBlue = t.team === 'blue';
+  const label = isBase ? 'B' : t.type === 'last' ? 'L' : t.type === 'defend2' ? '2' : '1';
   ctx.fillStyle = isBlue ? '#25f4ee' : '#fe2c55';
-  ctx.strokeStyle = isMain ? '#ffd56a' : '#fff';
-  ctx.lineWidth = isMain ? 3 : 1;
+  ctx.strokeStyle = isBase ? '#ffd56a' : '#fff';
+  ctx.lineWidth = isBase ? 3 : 1;
+  const s = isBase ? 22 : 16;
   ctx.beginPath();
-  ctx.moveTo(t.x, t.y - (isMain ? 20 : 16));
-  ctx.lineTo(t.x + (isMain ? 18 : 14), t.y + 10);
-  ctx.lineTo(t.x - (isMain ? 18 : 14), t.y + 10);
+  ctx.moveTo(t.x, t.y - s);
+  ctx.lineTo(t.x + s, t.y + 10);
+  ctx.lineTo(t.x - s, t.y + 10);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
   ctx.font = '10px sans-serif';
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
-  ctx.fillText(isMain ? 'M' : 'D', t.x, t.y + 4);
+  ctx.fillText(label, t.x, t.y + 4);
 }
 
 function render() {

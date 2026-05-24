@@ -26,7 +26,7 @@ const ROLE_CONFIG = {
     animFrames: 16,
     hitFrame: 9,
     hp: 72,
-    speed: 1.65,
+    speed: 0.85,
     radius: 13,
     color: '#6eb5ff',
   },
@@ -37,7 +37,7 @@ const ROLE_CONFIG = {
     animFrames: 22,
     hitFrame: 14,
     hp: 52,
-    speed: 1.35,
+    speed: 0.7,
     radius: 11,
     color: '#c77dff',
   },
@@ -48,11 +48,13 @@ const ROLE_CONFIG = {
     animFrames: 12,
     hitFrame: 6,
     hp: 48,
-    speed: 1.25,
+    speed: 0.65,
     radius: 10,
     color: '#ffd56a',
   },
 };
+
+const TURRET_ORDER = RIFT_MAP.TURRET_ORDER;
 
 const socket = io();
 const imageCache = new Map();
@@ -78,6 +80,9 @@ let particles = [];
 let floatingTexts = [];
 let turretsDestroyed = 0;
 let waveTimer = 0;
+let gameOver = null;
+const gameOverEl = document.getElementById('game-over');
+const gameOverTextEl = document.getElementById('game-over-text');
 
 function proxyAvatar(url) {
   if (!url) return null;
@@ -132,8 +137,7 @@ function dist(a, b) {
 
 function isAlive(target) {
   if (!target) return false;
-  if (target.hp !== undefined) return target.hp > 0;
-  return true;
+  return target.hp > 0;
 }
 
 function allUnits() {
@@ -142,6 +146,14 @@ function allUnits() {
 
 function minionsOnTeam(team, lane = null) {
   return minions.filter((m) => m.team === team && (!lane || m.lane === lane));
+}
+
+function laneHasPlayer(lane) {
+  return players.some((p) => p.lane === lane);
+}
+
+function isTurret(target) {
+  return target && target.shootDelay !== undefined && target.type !== undefined;
 }
 
 function spawnFloatingText(x, y, text, color = '#fff') {
@@ -200,16 +212,22 @@ function spawnMinion(team, lane, role) {
   return minion;
 }
 
-function maintainLaneMinions() {
-  for (const lane of LANES) {
-    for (const team of [TEAMS.BLUE, TEAMS.RED]) {
-      const laneMinions = minionsOnTeam(team, lane);
-      for (const role of ROLES) {
-        if (!laneMinions.some((m) => m.role === role)) {
-          spawnMinion(team, lane, role);
-        }
+function fillLaneMinions(lane) {
+  for (const team of [TEAMS.BLUE, TEAMS.RED]) {
+    const laneMinions = minionsOnTeam(team, lane);
+    for (const role of ROLES) {
+      if (!laneMinions.some((m) => m.role === role)) {
+        spawnMinion(team, lane, role);
       }
     }
+  }
+}
+
+function maintainLaneMinions() {
+  if (gameOver) return;
+  for (const lane of LANES) {
+    if (!laneHasPlayer(lane)) continue;
+    fillLaneMinions(lane);
   }
 }
 
@@ -232,6 +250,7 @@ function spawnPlayer(uniqueId, profileUrl, lane = null) {
     player.img = img;
   });
   players.push(player);
+  fillLaneMinions(chosenLane);
   return player;
 }
 
@@ -248,28 +267,34 @@ function livingTurrets(team = null, lane = null) {
   });
 }
 
-/** Defend (outer) before main (inner) for attackers */
+function laneTurretsCleared(team, lane) {
+  return livingTurrets(team, lane).filter((t) => t.type !== 'base').length === 0;
+}
+
 function sortedEnemyTurrets(unit) {
-  const foes = livingTurrets(enemyTeam(unit.team), unit.lane);
-  return foes.sort((a, b) => {
-    const order = { defend: 0, main: 1 };
-    const oa = order[a.type] ?? 0;
-    const ob = order[b.type] ?? 0;
-    if (oa !== ob) return oa - ob;
-    return dist(unit, a) - dist(unit, b);
-  });
+  const et = enemyTeam(unit.team);
+  const laneFoes = livingTurrets(et, unit.lane).sort(
+    (a, b) => (TURRET_ORDER[a.type] ?? 9) - (TURRET_ORDER[b.type] ?? 9)
+  );
+  const baseFoe = livingTurrets(et, 'base').find((t) => t.type === 'base');
+  const list = [...laneFoes];
+  if (baseFoe && laneTurretsCleared(et, unit.lane) && laneHasPlayer(unit.lane)) {
+    list.push(baseFoe);
+  }
+  return list;
 }
 
 function targetEnemyTurret(unit) {
+  if (!unit.isPlayer && !laneHasPlayer(unit.lane)) return null;
   const sorted = sortedEnemyTurrets(unit);
   const outer = sorted[0];
   if (!outer) return null;
-  if (dist(unit, outer) < unit.roleConfig.range + outer.radius + 20) return outer;
+  if (dist(unit, outer) < unit.roleConfig.range + outer.radius + 24) return outer;
   return null;
 }
 
-function acquireTarget(unit) {
-  const range = unit.roleConfig.range + 30;
+function findEnemyMinionInLane(unit) {
+  const range = unit.roleConfig.range + 40;
   const enemyMinions = minions.filter(
     (m) =>
       m.team === enemyTeam(unit.team) &&
@@ -277,15 +302,31 @@ function acquireTarget(unit) {
       isAlive(m) &&
       dist(unit, m) < range
   );
-  if (enemyMinions.length) {
-    return enemyMinions.sort((a, b) => dist(unit, a) - dist(unit, b))[0];
-  }
+  if (!enemyMinions.length) return null;
+  return enemyMinions.sort((a, b) => dist(unit, a) - dist(unit, b))[0];
+}
+
+function acquireTarget(unit) {
+  const foe = findEnemyMinionInLane(unit);
+  if (foe) return foe;
+
+  if (!unit.isPlayer && !laneHasPlayer(unit.lane)) return null;
+
   return targetEnemyTurret(unit);
 }
 
 function ensureLockedTarget(unit) {
-  if (isAlive(unit.lockedTarget) && dist(unit, unit.lockedTarget) < unit.roleConfig.range + 80) {
-    return unit.lockedTarget;
+  const maxTrack = unit.roleConfig.range + (isTurret(unit.lockedTarget) ? 100 : 80);
+  if (
+    isAlive(unit.lockedTarget) &&
+    dist(unit, unit.lockedTarget) < maxTrack &&
+    (!isTurret(unit.lockedTarget) || laneHasPlayer(unit.lane) || unit.isPlayer)
+  ) {
+    if (!unit.isPlayer && !laneHasPlayer(unit.lane) && isTurret(unit.lockedTarget)) {
+      unit.lockedTarget = null;
+    } else {
+      return unit.lockedTarget;
+    }
   }
   unit.lockedTarget = acquireTarget(unit);
   return unit.lockedTarget;
@@ -326,7 +367,7 @@ function startAttackAnim(unit, target) {
 
 function applyAttackHit(unit, target) {
   if (!isAlive(target)) return;
-  if (target.maxHp && target.shootDelay !== undefined) {
+  if (isTurret(target)) {
     damageTurret(target, unit.roleConfig.damage, unit.team);
     return;
   }
@@ -358,14 +399,28 @@ function tickAttackAnim(unit) {
   return true;
 }
 
+function endGame(loserTeam) {
+  if (gameOver) return;
+  gameOver = loserTeam;
+  const winner = loserTeam === TEAMS.BLUE ? 'RED TEAM WINS!' : 'BLUE TEAM WINS!';
+  gameOverTextEl.textContent = winner;
+  gameOverEl.hidden = false;
+  spawnFloatingText(W / 2 - 120, H / 2, winner, '#ffd56a');
+}
+
 function damageTurret(turret, amount, killerTeam) {
+  if (gameOver) return;
   turret.hp -= amount;
   spawnParticles(turret.x, turret.y, killerTeam === TEAMS.BLUE ? '#7ee8ff' : '#ff6b4a', 4);
   if (turret.hp <= 0) {
     turretsDestroyed++;
     turret.currentTarget = null;
     spawnParticles(turret.x, turret.y, '#ffaa00', 16);
-    spawnFloatingText(turret.x, turret.y - 30, 'TURRET DOWN!', '#ffd56a');
+    const label = turret.type === 'base' ? 'BASE DESTROYED!' : 'TURRET DOWN!';
+    spawnFloatingText(turret.x, turret.y - 30, label, '#ffd56a');
+    if (turret.type === 'base') {
+      endGame(turret.team);
+    }
   }
 }
 
@@ -394,6 +449,7 @@ function moveToward(unit, target) {
 }
 
 function updateLaneUnit(unit) {
+  if (gameOver) return;
   if (tickAttackAnim(unit)) return;
 
   if (unit.attackCooldown > 0) unit.attackCooldown--;
@@ -418,9 +474,11 @@ function updateLaneUnit(unit) {
 
 function trackTurretAggro(turret) {
   const now = performance.now();
-  const inRange = allUnits().filter(
-    (u) => u.lane === turret.lane && u.team === enemyTeam(turret.team) && dist(turret, u) <= turret.range
-  );
+  const inRange = allUnits().filter((u) => {
+    if (u.team !== enemyTeam(turret.team) || dist(turret, u) > turret.range) return false;
+    if (turret.lane === 'base') return true;
+    return u.lane === turret.lane;
+  });
 
   for (const u of inRange) {
     if (!u.turretEnteredAt[turret.id]) {
@@ -589,24 +647,25 @@ function drawBackground() {
 function drawTurret(turret) {
   if (turret.hp <= 0) return;
   const isBlue = turret.team === TEAMS.BLUE;
-  const isMain = turret.type === 'main';
+  const isBase = turret.type === 'base';
+  const isLast = turret.type === 'last';
   const glow = isBlue ? '#25f4ee' : '#fe2c55';
-  const h = isMain ? 34 : 28;
+  const h = isBase ? 36 : isLast ? 30 : 26;
 
   ctx.save();
   ctx.translate(turret.x, turret.y);
   ctx.fillStyle = isBlue ? '#1a4a8a' : '#8a1a1a';
-  ctx.strokeStyle = isMain ? '#ffd56a' : glow;
-  ctx.lineWidth = isMain ? 4 : 2;
+  ctx.strokeStyle = isBase ? '#ffd56a' : glow;
+  ctx.lineWidth = isBase ? 4 : 2;
   ctx.beginPath();
   ctx.moveTo(0, -h);
-  ctx.lineTo(isMain ? 26 : 20, 14);
-  ctx.lineTo(isMain ? -26 : -20, 14);
+  ctx.lineTo(isBase ? 28 : isLast ? 22 : 18, 14);
+  ctx.lineTo(isBase ? -28 : isLast ? -22 : -18, 14);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
-  const hpW = isMain ? 54 : 46;
+  const hpW = isBase ? 58 : isLast ? 50 : 44;
   ctx.fillStyle = '#222';
   ctx.fillRect(-hpW / 2, -h - 14, hpW, 5);
   ctx.fillStyle = isBlue ? '#3498db' : '#e74c3c';
@@ -730,6 +789,8 @@ function drawUnitAttack(unit, anim) {
 }
 
 function update() {
+  if (gameOver) return;
+
   waveTimer++;
   if (waveTimer >= WAVE_INTERVAL) {
     waveTimer = 0;
@@ -805,5 +866,5 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-maintainLaneMinions();
+for (const lane of LANES) fillLaneMinions(lane);
 loop();

@@ -14,7 +14,7 @@
         <h1>TIKTOK LIVE WAR</h1>
         <p id="status">Enter username &amp; go LIVE</p>
         <p class="hint">
-          Follow = join · Like/Gift = power · AI: 3 minions/lane (melee→mage→marksman) ·
+          Follow = join lane · No player = minion 1v1 tie · Destroy base turret = win ·
           <a href="/map-editor.html" class="hint-link">Turret editor</a>
         </p>
       </div>
@@ -25,6 +25,10 @@
         <div>Turrets down: <span id="turrets-down">0</span></div>
       </div>
     </header>
+
+    <div id="game-over" hidden>
+      <p id="game-over-text">GAME OVER</p>
+    </div>
 
     <section id="setup-panel" aria-label="Connect to TikTok LIVE">
       <label for="username">TikTok username (no @)</label>

@@ -37,7 +37,7 @@ Health check: `GET /health`
 
 - **Backend** (`server.js`) uses [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector) to listen for follow, like, and gift events from your live room.
 - **WebSocket** (Socket.IO) pushes events to the browser game in real time.
-- **Frontend** (`public/js/game.js`) — **3 AI minions per team per lane** (melee in front, mage, marksman) with attack animations; **defending** and **main** turrets (place via `/map-editor.html`). Turrets prioritize minions over players (MOBA aggro). **Follow** to join as a champion.
+- **Frontend** (`public/js/game.js`) — **3 AI minions per team per lane** (melee → mage → marksman). Per lane: **2 defend + 1 last** turret + **base turret** at nexus (destroy base = that team loses). Lanes **without a follower** are minion-only 1v1 ties (no respawns). Place turrets via `/map-editor.html`.
 
 ## Tips for streaming
 

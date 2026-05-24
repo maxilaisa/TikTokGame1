@@ -2,6 +2,8 @@
 (function (global) {
   const STORAGE_KEY = 'rift-map-data';
 
+  const TURRET_ORDER = { defend1: 0, defend2: 1, last: 2, base: 3 };
+
   const DEFAULT_MAP = {
     blueBase: { x: 246, y: 938 },
     redBase: { x: 1423, y: 112 },
@@ -63,34 +65,64 @@
     return { x: last.x, y: last.y };
   }
 
-  function defaultTurretPlacements(lanePaths) {
-    const slots = [
-      { team: 'blue', type: 'defend', t: 0.28 },
-      { team: 'blue', type: 'main', t: 0.14 },
-      { team: 'red', type: 'defend', t: 0.72 },
-      { team: 'red', type: 'main', t: 0.86 },
-    ];
+  function defaultTurretPlacements(config, lanePaths) {
     const list = [];
+    const laneSlots = [
+      { team: 'blue', type: 'defend1', t: 0.3 },
+      { team: 'blue', type: 'defend2', t: 0.22 },
+      { team: 'blue', type: 'last', t: 0.14 },
+      { team: 'red', type: 'defend1', t: 0.7 },
+      { team: 'red', type: 'defend2', t: 0.78 },
+      { team: 'red', type: 'last', t: 0.86 },
+    ];
     for (const lane of ['top', 'mid', 'bot']) {
       const path = lanePaths[lane];
-      for (const s of slots) {
+      for (const s of laneSlots) {
         const pos = pointOnPath(path, s.t);
-        list.push({ lane, team: s.team, type: s.type, x: Math.round(pos.x), y: Math.round(pos.y) });
+        list.push({
+          lane,
+          team: s.team,
+          type: s.type,
+          x: Math.round(pos.x),
+          y: Math.round(pos.y),
+        });
       }
     }
+    list.push({
+      lane: 'base',
+      team: 'blue',
+      type: 'base',
+      x: config.blueBase.x,
+      y: config.blueBase.y - 50,
+    });
+    list.push({
+      lane: 'base',
+      team: 'red',
+      type: 'base',
+      x: config.redBase.x,
+      y: config.redBase.y + 50,
+    });
     return list;
   }
 
   function turretStats(type) {
-    if (type === 'main') {
-      return { maxHp: 1200, radius: 30, range: 260, damage: 32, shootDelay: 42 };
+    switch (type) {
+      case 'base':
+        return { maxHp: 2000, radius: 34, range: 280, damage: 38, shootDelay: 38 };
+      case 'last':
+        return { maxHp: 900, radius: 28, range: 250, damage: 28, shootDelay: 46 };
+      case 'defend2':
+        return { maxHp: 650, radius: 26, range: 240, damage: 24, shootDelay: 50 };
+      default:
+        return { maxHp: 550, radius: 24, range: 235, damage: 22, shootDelay: 52 };
     }
-    return { maxHp: 700, radius: 26, range: 240, damage: 24, shootDelay: 48 };
   }
 
   function buildTurrets(config, lanePaths) {
     const placements =
-      config.turrets?.length > 0 ? config.turrets : defaultTurretPlacements(lanePaths);
+      config.turrets?.length > 0
+        ? config.turrets
+        : defaultTurretPlacements(config, lanePaths);
 
     return placements.map((p, i) => {
       const stats = turretStats(p.type);
@@ -109,7 +141,6 @@
         shootCooldown: 0,
         shootDelay: stats.shootDelay,
         currentTarget: null,
-        targetKind: null,
       };
     });
   }
@@ -136,6 +167,7 @@
   global.RIFT_MAP = {
     STORAGE_KEY,
     DEFAULT_MAP,
+    TURRET_ORDER,
     load,
     save,
     clear,
