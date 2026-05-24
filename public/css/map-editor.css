@@ -66,6 +66,24 @@ fieldset {
   font-size: 0.8rem;
 }
 
+.range-inputs label {
+  display: block;
+  margin: 8px 0;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.range-inputs input[type='number'] {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #445;
+  background: #121820;
+  color: #ffe566;
+  font-size: 0.9rem;
+}
+
 .lane-btns,
 .place-btn {
   display: flex;

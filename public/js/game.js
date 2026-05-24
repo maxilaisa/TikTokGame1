@@ -68,6 +68,7 @@ mapImg.src = '/assets/rift-map.png';
 
 const mapData = RIFT_MAP.load();
 const MEET_POINTS = mapData.meetPoints;
+const MEET_MARCH_FRAMES = mapData.meetMarchFrames || 240;
 const BLUE_BASE = mapData.blueBase;
 const RED_BASE = mapData.redBase;
 const LANE_PATHS = RIFT_MAP.buildLanePaths(mapData);
@@ -226,13 +227,38 @@ function spawnMinion(team, lane, role) {
     isPlayer: false,
   });
   minions.push(minion);
+  syncLaneMarchSpeeds(lane);
   return minion;
+}
+
+function isMarchPhase(minion) {
+  if (minion.isPlayer) return false;
+  if (!laneHasPlayer(minion.lane)) return true;
+  return minion.waypointIndex < 1;
+}
+
+function syncLaneMarchSpeeds(lane) {
+  const group = minions.filter((m) => m.lane === lane && !m.isPlayer);
+  for (const m of group) {
+    const meet = m.path[1];
+    if (!meet) continue;
+    const d = Math.hypot(m.x - meet.x, m.y - meet.y);
+    m.marchSpeed = Math.max(0.35, d / MEET_MARCH_FRAMES);
+  }
+}
+
+function unitMoveSpeed(unit) {
+  if (unit.marchSpeed != null && isMarchPhase(unit)) return unit.marchSpeed;
+  return unit.roleConfig?.speed ?? unit.speed ?? 1;
 }
 
 function refreshLaneMinionPaths(lane) {
   for (const m of minions.filter((u) => u.lane === lane && !u.isPlayer)) {
     m.path = buildMinionPath(lane, m.team);
+    m.waypointIndex = 0;
+    m.marchSpeed = null;
   }
+  syncLaneMarchSpeeds(lane);
 }
 
 function fillLaneMinions(lane) {
@@ -460,11 +486,15 @@ function moveAlongPath(unit) {
   const d = Math.hypot(dx, dy);
   if (d < 8 && idx < unit.path.length - 1) {
     unit.waypointIndex++;
+    if (!unit.isPlayer && unit.waypointIndex >= 1 && laneHasPlayer(unit.lane)) {
+      unit.marchSpeed = null;
+    }
     return;
   }
+  const spd = unitMoveSpeed(unit);
   if (d > 1) {
-    unit.x += (dx / d) * unit.speed;
-    unit.y += (dy / d) * unit.speed;
+    unit.x += (dx / d) * spd;
+    unit.y += (dy / d) * spd;
   }
 }
 
@@ -472,8 +502,9 @@ function moveToward(unit, target) {
   const dx = target.x - unit.x;
   const dy = target.y - unit.y;
   const d = Math.hypot(dx, dy) || 1;
-  unit.x += (dx / d) * unit.speed;
-  unit.y += (dy / d) * unit.speed;
+  const spd = unitMoveSpeed(unit);
+  unit.x += (dx / d) * spd;
+  unit.y += (dy / d) * spd;
 }
 
 function updateLaneUnit(unit) {

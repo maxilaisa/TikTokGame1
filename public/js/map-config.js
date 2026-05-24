@@ -51,6 +51,8 @@
       { lane: 'base', team: 'red', type: 'base', x: 1361, y: 162 },
     ],
     meetPoints: null,
+    /** Frames for all minions on a lane to reach the meet point (same arrival time). */
+    meetMarchFrames: 240,
   };
 
   function defaultMeetPoints(lanePaths) {
@@ -178,7 +180,7 @@
         hp: stats.maxHp,
         maxHp: stats.maxHp,
         radius: stats.radius,
-        range: stats.range,
+        range: p.range ?? stats.range,
         damage: stats.damage,
         shootCooldown: 0,
         shootDelay: stats.shootDelay,
@@ -203,6 +205,7 @@
         turrets: parsed.turrets?.length ? parsed.turrets : DEFAULT_MAP.turrets,
       };
       merged.meetPoints = ensureMeetPoints(merged);
+      merged.meetMarchFrames = parsed.meetMarchFrames ?? DEFAULT_MAP.meetMarchFrames;
       return merged;
     } catch {
       return JSON.parse(JSON.stringify(DEFAULT_MAP));

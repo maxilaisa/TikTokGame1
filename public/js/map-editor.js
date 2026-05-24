@@ -6,6 +6,8 @@ const turretListEl = document.getElementById('turret-list');
 const exportJsonEl = document.getElementById('export-json');
 const toastEl = document.getElementById('toast');
 const showRangesEl = document.getElementById('show-ranges');
+const turretRangeEl = document.getElementById('turret-range');
+const marchFramesEl = document.getElementById('march-frames');
 
 const W = canvas.width;
 const H = canvas.height;
@@ -28,6 +30,10 @@ const lanePaths = RIFT_MAP.buildLanePaths(config);
 if (!config.meetPoints) {
   config.meetPoints = RIFT_MAP.ensureMeetPoints(config);
 }
+if (!config.meetMarchFrames) {
+  config.meetMarchFrames = 240;
+}
+marchFramesEl.value = String(config.meetMarchFrames);
 
 function canvasCoords(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
@@ -35,6 +41,34 @@ function canvasCoords(clientX, clientY) {
     x: Math.round((clientX - rect.left) * (W / rect.width)),
     y: Math.round((clientY - rect.top) * (H / rect.height)),
   };
+}
+
+function defaultRangeForMode(mode) {
+  if (mode === 'meet') return 235;
+  const type = mode.split('-').slice(1).join('-');
+  return RIFT_MAP.turretStats(type).range;
+}
+
+function updateRangeInputForMode() {
+  turretRangeEl.value = String(defaultRangeForMode(placeMode));
+}
+
+function getRangeInput() {
+  const n = Number(turretRangeEl.value);
+  return Number.isFinite(n) && n >= 80 ? Math.round(n) : defaultRangeForMode(placeMode);
+}
+
+function findTurretAt(x, y, maxDist = 36) {
+  let best = null;
+  let bestD = maxDist;
+  for (const t of config.turrets || []) {
+    const d = Math.hypot(t.x - x, t.y - y);
+    if (d < bestD) {
+      bestD = d;
+      best = t;
+    }
+  }
+  return best;
 }
 
 function showToast(msg) {
@@ -47,8 +81,13 @@ function showToast(msg) {
 }
 
 function syncExport() {
+  config.meetMarchFrames = Number(marchFramesEl.value) || 240;
   exportJsonEl.value = JSON.stringify(
-    { turrets: config.turrets, meetPoints: config.meetPoints },
+    {
+      turrets: config.turrets,
+      meetPoints: config.meetPoints,
+      meetMarchFrames: config.meetMarchFrames,
+    },
     null,
     2
   );
@@ -59,10 +98,15 @@ function refreshList() {
     const m = config.meetPoints[lane];
     return `<li><strong>Meet ${lane}</strong> — { x: ${m.x}, y: ${m.y} }</li>`;
   });
-  const turretLines = (config.turrets || []).map(
-    (t, i) => `<li>${i + 1}. ${t.lane} ${t.team} ${t.type} — { x: ${t.x}, y: ${t.y} }</li>`
-  );
-  turretListEl.innerHTML = [...meetLines, ...turretLines].join('');
+  const turretLines = (config.turrets || []).map((t, i) => {
+    const r = t.range ?? RIFT_MAP.turretStats(t.type).range;
+    return `<li>${i + 1}. ${t.lane} ${t.team} ${t.type} — { x: ${t.x}, y: ${t.y}, range: ${r} }</li>`;
+  });
+  turretListEl.innerHTML = [
+    `<li><strong>March frames</strong>: ${config.meetMarchFrames}</li>`,
+    ...meetLines,
+    ...turretLines,
+  ].join('');
   syncExport();
 }
 
@@ -80,11 +124,17 @@ document.querySelectorAll('.place-btn').forEach((btn) => {
     document.querySelectorAll('.place-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     placeMode = btn.dataset.mode;
+    updateRangeInputForMode();
   });
 });
 
 showRangesEl.addEventListener('change', () => {
   showRanges = showRangesEl.checked;
+});
+
+marchFramesEl.addEventListener('change', () => {
+  config.meetMarchFrames = Number(marchFramesEl.value) || 240;
+  syncExport();
 });
 
 canvas.addEventListener('mousemove', (e) => {
@@ -98,12 +148,12 @@ canvas.addEventListener('click', (e) => {
 
   if (placeMode === 'meet') {
     if (activeLane === 'base') {
-      showToast('Pick top / mid / bot lane for meet point');
+      showToast('Pick top / mid / bot for meet point');
       return;
     }
     config.meetPoints[activeLane] = { x, y };
     refreshList();
-    showToast(`Meet point set (${activeLane})`);
+    showToast(`Meet point (${activeLane})`);
     return;
   }
 
@@ -111,10 +161,22 @@ canvas.addEventListener('click', (e) => {
   const team = parts[0];
   const type = parts.slice(1).join('-');
   const lane = type === 'base' ? 'base' : activeLane;
+  const range = getRangeInput();
   if (!config.turrets) config.turrets = [];
-  config.turrets.push({ lane, team, type, x, y });
+  config.turrets.push({ lane, team, type, x, y, range });
   refreshList();
-  showToast(`Placed ${team} ${type}`);
+  showToast(`${team} ${type} · range ${range}`);
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { x, y } = canvasCoords(e.clientX, e.clientY);
+  const t = findTurretAt(x, y);
+  if (!t) return;
+  t.range = getRangeInput();
+  turretRangeEl.value = String(t.range);
+  refreshList();
+  showToast(`Range ${t.range} on ${t.team} ${t.type}`);
 });
 
 document.getElementById('undo-btn').addEventListener('click', () => {
@@ -128,23 +190,27 @@ document.getElementById('clear-btn').addEventListener('click', () => {
 });
 
 document.getElementById('apply-btn').addEventListener('click', () => {
+  config.meetMarchFrames = Number(marchFramesEl.value) || 240;
   RIFT_MAP.save(config);
   showToast('Saved — refresh game');
 });
 
 document.getElementById('open-game-btn').addEventListener('click', () => {
+  config.meetMarchFrames = Number(marchFramesEl.value) || 240;
   RIFT_MAP.save(config);
   window.open('/?ranges=1', '_blank');
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
-  if (!confirm('Reset turrets & meet points to defaults?')) return;
+  if (!confirm('Reset to defaults?')) return;
   RIFT_MAP.clear();
   config = RIFT_MAP.load();
+  marchFramesEl.value = String(config.meetMarchFrames);
   refreshList();
 });
 
 document.getElementById('copy-btn').addEventListener('click', async () => {
+  syncExport();
   await navigator.clipboard.writeText(exportJsonEl.value);
   showToast('Copied');
 });
@@ -161,17 +227,33 @@ function drawPaths() {
   }
 }
 
+function turretRange(t) {
+  return t.range ?? RIFT_MAP.turretStats(t.type).range;
+}
+
 function drawTurretRanges() {
   for (const t of config.turrets || []) {
-    const stats = RIFT_MAP.turretStats(t.type);
+    const r = turretRange(t);
     const isBlue = t.team === 'blue';
     ctx.strokeStyle = isBlue ? 'rgba(37, 244, 238, 0.45)' : 'rgba(254, 44, 85, 0.45)';
     ctx.fillStyle = isBlue ? 'rgba(37, 244, 238, 0.07)' : 'rgba(254, 44, 85, 0.07)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(t.x, t.y, stats.range, 0, Math.PI * 2);
+    ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+  }
+
+  if (placeMode !== 'meet' && showRanges) {
+    const previewR = getRangeInput();
+    ctx.strokeStyle = 'rgba(255, 229, 102, 0.6)';
+    ctx.fillStyle = 'rgba(255, 229, 102, 0.08)';
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, previewR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 }
 
@@ -213,6 +295,9 @@ function drawTurretMarker(t) {
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(label, t.x, t.y + 4);
+  const r = turretRange(t);
+  ctx.font = '8px sans-serif';
+  ctx.fillText(String(r), t.x, t.y + 22);
 }
 
 function render() {
@@ -241,5 +326,6 @@ function render() {
   requestAnimationFrame(render);
 }
 
+updateRangeInputForMode();
 refreshList();
 render();

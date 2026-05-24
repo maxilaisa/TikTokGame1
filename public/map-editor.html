@@ -13,7 +13,7 @@
     <aside id="editor-panel">
       <h1>Map editor</h1>
       <p class="editor-lead">
-        Place turrets &amp; <strong>minion meet points</strong>. Orange circles = turret attack range.
+        Turret range + meet points. <strong>Right-click</strong> a turret to set range. Yellow circle = preview.
       </p>
 
       <div class="coord-box">
@@ -29,6 +29,17 @@
         <input type="checkbox" id="show-ranges" checked />
         Show turret range
       </label>
+
+      <div class="range-inputs">
+        <label>
+          Turret range (next / right-click turret)
+          <input type="number" id="turret-range" min="80" max="400" value="235" />
+        </label>
+        <label>
+          Minion march frames (same arrival at meet)
+          <input type="number" id="march-frames" min="120" max="600" value="240" />
+        </label>
+      </div>
 
       <fieldset>
         <legend>Lane</legend>
