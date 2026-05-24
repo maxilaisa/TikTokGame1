@@ -13,7 +13,10 @@
       <div class="hud-left">
         <h1>TIKTOK LIVE WAR</h1>
         <p id="status">Enter username &amp; go LIVE</p>
-        <p class="hint">Follow = join Blue · Like = shoot · Gift = reinforce · Red = AI</p>
+        <p class="hint">
+          Follow = join Blue · Like = shoot · Gift = reinforce · Red = AI ·
+          <a href="/map-editor.html" class="hint-link">Map editor</a>
+        </p>
       </div>
       <div class="hud-right">
         <div>Blue: <span id="blue-count">0</span></div>
@@ -38,6 +41,7 @@
     </section>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/map-config.js"></script>
     <script src="/js/game.js"></script>
   </body>
 </html>

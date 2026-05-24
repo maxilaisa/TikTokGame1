@@ -54,6 +54,12 @@ body {
   margin-top: 6px;
 }
 
+.hint-link {
+  color: #7ee8ff;
+  pointer-events: auto;
+  text-decoration: underline;
+}
+
 .hud-right {
   font-size: 0.9rem;
   text-align: right;

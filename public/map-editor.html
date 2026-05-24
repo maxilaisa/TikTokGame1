@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map path editor — TikTok Live War</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/map-editor.css" />
+  </head>
+  <body class="editor-body">
+    <canvas id="editor-canvas" width="1920" height="1080"></canvas>
+
+    <aside id="editor-panel">
+      <h1>Map path editor</h1>
+      <p class="editor-lead">
+        Click the map to place points. Coordinates are <strong>1920×1080</strong> (same as the game).
+      </p>
+
+      <div class="coord-box">
+        <div>Cursor</div>
+        <code id="cursor-coords">— , —</code>
+      </div>
+      <div class="coord-box highlight">
+        <div>Last click</div>
+        <code id="click-coords">(none)</code>
+      </div>
+
+      <fieldset>
+        <legend>Click mode</legend>
+        <label><input type="radio" name="mode" value="lane" checked /> Lane waypoint</label>
+        <label><input type="radio" name="mode" value="blue" /> Set Blue base</label>
+        <label><input type="radio" name="mode" value="red" /> Set Red base</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Lane</legend>
+        <div class="lane-btns">
+          <button type="button" class="lane-btn active" data-lane="top">Top</button>
+          <button type="button" class="lane-btn" data-lane="mid">Mid</button>
+          <button type="button" class="lane-btn" data-lane="bot">Bot</button>
+        </div>
+      </fieldset>
+
+      <div class="editor-actions">
+        <button type="button" id="undo-btn">Undo last (lane)</button>
+        <button type="button" id="clear-lane-btn">Clear lane</button>
+      </div>
+
+      <ul id="point-list" class="point-list"></ul>
+
+      <div class="editor-actions primary">
+        <button type="button" id="apply-btn">Apply to game</button>
+        <button type="button" id="preview-game-btn">Open game</button>
+        <button type="button" id="reset-btn">Reset defaults</button>
+      </div>
+
+      <label class="export-label" for="export-json">Copy this and send to adjust in code:</label>
+      <textarea id="export-json" readonly rows="12"></textarea>
+      <button type="button" id="copy-btn">Copy JSON</button>
+
+      <p class="editor-footer">
+        <a href="/">← Back to game</a>
+      </p>
+    </aside>
+
+    <div id="toast" hidden></div>
+
+    <script src="/js/map-config.js"></script>
+    <script src="/js/map-editor.js"></script>
+  </body>
+</html>

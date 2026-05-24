@@ -22,6 +22,18 @@ npm start
 4. Open `http://localhost:3000`, enter your username if needed, click **Connect to LIVE**.
 5. Add a **Browser Source** in OBS pointing at your game URL (1920×1080 recommended). Crop out the connect panel after connecting.
 
+### Align lanes to the map image
+
+Open **`/map-editor.html`** (or click **Map editor** on the game HUD):
+
+1. **Cursor** shows live `x, y` (1920×1080).
+2. **Click** places a point; **Last click** shows `{ x: …, y: … }`.
+3. Set **Blue base** / **Red base**, then add **Top / Mid / Bot** waypoints along each lane (blue → red).
+4. Click **Apply to game**, then refresh the main game (or use **Open game**).
+5. Add `?paths` to the game URL to draw lane lines on top while testing.
+
+Copy the JSON and send the coordinates if you want them baked into the repo defaults.
+
 ## Deploy on Railway
 
 1. Push this repo to GitHub.

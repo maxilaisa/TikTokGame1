@@ -27,32 +27,11 @@ mapImg.onload = () => {
 };
 mapImg.src = '/assets/rift-map.png';
 
-const BLUE_BASE = { x: 200, y: H - 200 };
-const RED_BASE = { x: W - 200, y: 200 };
-
-const LANE_PATHS = {
-  top: [
-    BLUE_BASE,
-    { x: 320, y: H - 380 },
-    { x: 420, y: 420 },
-    { x: 1100, y: 260 },
-    RED_BASE,
-  ],
-  mid: [
-    BLUE_BASE,
-    { x: 520, y: H - 420 },
-    { x: W * 0.5, y: H * 0.5 },
-    { x: W - 520, y: 320 },
-    RED_BASE,
-  ],
-  bot: [
-    BLUE_BASE,
-    { x: 480, y: H - 120 },
-    { x: 1150, y: H - 160 },
-    { x: W - 420, y: H * 0.48 },
-    RED_BASE,
-  ],
-};
+const mapConfig = RIFT_MAP.load(W, H);
+const BLUE_BASE = mapConfig.blueBase;
+const RED_BASE = mapConfig.redBase;
+const LANE_PATHS = RIFT_MAP.buildLanePaths(mapConfig);
+const showPathDebug = new URLSearchParams(location.search).has('paths');
 
 let units = [];
 let bullets = [];
@@ -325,6 +304,21 @@ function drawMapFallback() {
   ctx.fillText('RED', RED_BASE.x, RED_BASE.y + 6);
 }
 
+function drawPathDebug() {
+  const colors = { top: '#7ee8ff', mid: '#ffe566', bot: '#ff8866' };
+  for (const lane of LANES) {
+    const path = LANE_PATHS[lane];
+    ctx.strokeStyle = colors[lane];
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
 function drawBackground() {
   if (mapImage) {
     ctx.drawImage(mapImage, 0, 0, W, H);
@@ -333,6 +327,7 @@ function drawBackground() {
   } else {
     drawMapFallback();
   }
+  if (showPathDebug) drawPathDebug();
 }
 
 function drawUnit(unit) {
