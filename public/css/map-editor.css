@@ -58,11 +58,23 @@ fieldset {
   margin: 8px 0;
 }
 
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 0.8rem;
+}
+
 .lane-btns,
 .place-btn {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+fieldset .place-btn {
+  width: calc(50% - 4px);
 }
 
 .lane-btn,

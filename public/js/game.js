@@ -67,10 +67,12 @@ mapImg.onload = () => {
 mapImg.src = '/assets/rift-map.png';
 
 const mapData = RIFT_MAP.load();
+const MEET_POINTS = mapData.meetPoints;
 const BLUE_BASE = mapData.blueBase;
 const RED_BASE = mapData.redBase;
 const LANE_PATHS = RIFT_MAP.buildLanePaths(mapData);
 let turrets = RIFT_MAP.buildTurrets(mapData, LANE_PATHS);
+const showTurretRanges = new URLSearchParams(location.search).has('ranges');
 
 let minions = [];
 let players = [];
@@ -114,6 +116,21 @@ function loadImage(url) {
 function pathForTeam(lane, team) {
   const path = LANE_PATHS[lane];
   return team === TEAMS.RED ? [...path].reverse() : path;
+}
+
+function getMeetPoint(lane) {
+  return MEET_POINTS[lane] || RIFT_MAP.pointOnPath(LANE_PATHS[lane], 0.5);
+}
+
+/** Inactive lane: spawn → meet only. Active lane: spawn → meet → push to enemy. */
+function buildMinionPath(lane, team) {
+  const full = pathForTeam(lane, team);
+  const meet = getMeetPoint(lane);
+  const m = { x: meet.x, y: meet.y };
+  if (!laneHasPlayer(lane)) {
+    return [full[0], m];
+  }
+  return [full[0], m, ...full.slice(1)];
 }
 
 function pathTangent(path) {
@@ -175,7 +192,7 @@ function spawnParticles(x, y, color, n = 8) {
 }
 
 function makeLaneUnit(team, lane, stats) {
-  const path = pathForTeam(lane, team);
+  const path = stats.isPlayer ? pathForTeam(lane, team) : buildMinionPath(lane, team);
   const tan = pathTangent(path);
   const start = path[0];
   const off = stats.formationOffset || 0;
@@ -212,6 +229,12 @@ function spawnMinion(team, lane, role) {
   return minion;
 }
 
+function refreshLaneMinionPaths(lane) {
+  for (const m of minions.filter((u) => u.lane === lane && !u.isPlayer)) {
+    m.path = buildMinionPath(lane, m.team);
+  }
+}
+
 function fillLaneMinions(lane) {
   for (const team of [TEAMS.BLUE, TEAMS.RED]) {
     const laneMinions = minionsOnTeam(team, lane);
@@ -221,6 +244,7 @@ function fillLaneMinions(lane) {
       }
     }
   }
+  refreshLaneMinionPaths(lane);
 }
 
 function maintainLaneMinions() {
@@ -251,6 +275,7 @@ function spawnPlayer(uniqueId, profileUrl, lane = null) {
   });
   players.push(player);
   fillLaneMinions(chosenLane);
+  refreshLaneMinionPaths(chosenLane);
   return player;
 }
 
@@ -273,9 +298,12 @@ function laneTurretsCleared(team, lane) {
 
 function sortedEnemyTurrets(unit) {
   const et = enemyTeam(unit.team);
-  const laneFoes = livingTurrets(et, unit.lane).sort(
-    (a, b) => (TURRET_ORDER[a.type] ?? 9) - (TURRET_ORDER[b.type] ?? 9)
-  );
+  const laneFoes = livingTurrets(et, unit.lane).sort((a, b) => {
+    const oa = TURRET_ORDER[a.type] ?? 9;
+    const ob = TURRET_ORDER[b.type] ?? 9;
+    if (oa !== ob) return oa - ob;
+    return dist(unit, a) - dist(unit, b);
+  });
   const baseFoe = livingTurrets(et, 'base').find((t) => t.type === 'base');
   const list = [...laneFoes];
   if (baseFoe && laneTurretsCleared(et, unit.lane) && laneHasPlayer(unit.lane)) {
@@ -633,6 +661,37 @@ connectBtn.addEventListener('click', () => {
   socket.emit('connect-tiktok', username);
 });
 
+function drawTurretRanges() {
+  for (const t of turrets) {
+    if (t.hp <= 0) continue;
+    const isBlue = t.team === TEAMS.BLUE;
+    ctx.strokeStyle = isBlue ? 'rgba(37, 244, 238, 0.35)' : 'rgba(254, 44, 85, 0.35)';
+    ctx.fillStyle = isBlue ? 'rgba(37, 244, 238, 0.06)' : 'rgba(254, 44, 85, 0.06)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+function drawMeetPoints() {
+  for (const lane of LANES) {
+    const m = getMeetPoint(lane);
+    ctx.strokeStyle = laneHasPlayer(lane) ? 'rgba(255, 213, 106, 0.9)' : 'rgba(255, 180, 80, 0.7)';
+    ctx.fillStyle = 'rgba(255, 213, 106, 0.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('FIGHT', m.x, m.y + 4);
+  }
+}
+
 function drawBackground() {
   if (mapImage) {
     ctx.drawImage(mapImage, 0, 0, W, H);
@@ -642,6 +701,7 @@ function drawBackground() {
     ctx.fillStyle = '#1a2e1a';
     ctx.fillRect(0, 0, W, H);
   }
+  if (showTurretRanges) drawTurretRanges();
 }
 
 function drawTurret(turret) {
@@ -828,6 +888,7 @@ function update() {
 function render() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
+  if (showTurretRanges) drawMeetPoints();
   for (const t of turrets) drawTurret(t);
   for (const m of minions) drawMinion(m);
   for (const p of players) drawPlayer(p);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Turret placement — TikTok Live War</title>
+    <title>Map editor — TikTok Live War</title>
     <link rel="stylesheet" href="/css/style.css" />
     <link rel="stylesheet" href="/css/map-editor.css" />
   </head>
@@ -11,9 +11,9 @@
     <canvas id="editor-canvas" width="1920" height="1080"></canvas>
 
     <aside id="editor-panel">
-      <h1>Turret editor</h1>
+      <h1>Map editor</h1>
       <p class="editor-lead">
-        Per lane: <strong>2 defend</strong> + <strong>1 last</strong>. Plus <strong>base</strong> at nexus (lane = base).
+        Place turrets &amp; <strong>minion meet points</strong>. Orange circles = turret attack range.
       </p>
 
       <div class="coord-box">
@@ -25,8 +25,13 @@
         <code id="click-coords">(none)</code>
       </div>
 
+      <label class="toggle-row">
+        <input type="checkbox" id="show-ranges" checked />
+        Show turret range
+      </label>
+
       <fieldset>
-        <legend>Lane (for defend / last)</legend>
+        <legend>Lane</legend>
         <div class="lane-btns">
           <button type="button" class="lane-btn active" data-lane="top">Top</button>
           <button type="button" class="lane-btn" data-lane="mid">Mid</button>
@@ -36,20 +41,21 @@
       </fieldset>
 
       <fieldset>
-        <legend>Place turret</legend>
+        <legend>Tool</legend>
+        <button type="button" class="place-btn active" data-mode="meet">Minion meet (lane)</button>
         <button type="button" class="place-btn" data-mode="blue-defend1">Blue defend 1</button>
         <button type="button" class="place-btn" data-mode="blue-defend2">Blue defend 2</button>
         <button type="button" class="place-btn" data-mode="blue-last">Blue last</button>
         <button type="button" class="place-btn" data-mode="blue-base">Blue base</button>
         <button type="button" class="place-btn" data-mode="red-defend1">Red defend 1</button>
         <button type="button" class="place-btn" data-mode="red-defend2">Red defend 2</button>
-        <button type="button" class="place-btn active" data-mode="red-last">Red last</button>
+        <button type="button" class="place-btn" data-mode="red-last">Red last</button>
         <button type="button" class="place-btn" data-mode="red-base">Red base</button>
       </fieldset>
 
       <div class="editor-actions">
-        <button type="button" id="undo-btn">Undo last</button>
-        <button type="button" id="clear-btn">Clear all</button>
+        <button type="button" id="undo-btn">Undo turret</button>
+        <button type="button" id="clear-btn">Clear turrets</button>
       </div>
 
       <ul id="turret-list" class="point-list"></ul>
@@ -60,7 +66,7 @@
         <button type="button" id="reset-btn">Reset defaults</button>
       </div>
 
-      <textarea id="export-json" readonly rows="8"></textarea>
+      <textarea id="export-json" readonly rows="10"></textarea>
       <button type="button" id="copy-btn">Copy JSON</button>
       <p class="editor-footer"><a href="/">← Back to game</a></p>
     </aside>

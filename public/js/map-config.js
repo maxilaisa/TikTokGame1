@@ -28,8 +28,50 @@
         { x: 1427, y: 324 },
       ],
     },
-    turrets: [],
+    turrets: [
+      { lane: 'top', team: 'blue', type: 'defend1', x: 432, y: 291 },
+      { lane: 'top', team: 'blue', type: 'defend2', x: 436, y: 500 },
+      { lane: 'top', team: 'blue', type: 'last', x: 377, y: 648 },
+      { lane: 'mid', team: 'blue', type: 'defend1', x: 806, y: 515 },
+      { lane: 'mid', team: 'blue', type: 'defend2', x: 734, y: 612 },
+      { lane: 'mid', team: 'blue', type: 'last', x: 604, y: 688 },
+      { lane: 'bot', team: 'blue', type: 'defend1', x: 1264, y: 888 },
+      { lane: 'bot', team: 'blue', type: 'defend2', x: 909, y: 852 },
+      { lane: 'bot', team: 'blue', type: 'last', x: 647, y: 867 },
+      { lane: 'base', team: 'blue', type: 'base', x: 379, y: 833 },
+      { lane: 'top', team: 'red', type: 'defend1', x: 701, y: 143 },
+      { lane: 'top', team: 'red', type: 'defend2', x: 967, y: 152 },
+      { lane: 'top', team: 'red', type: 'last', x: 1155, y: 142 },
+      { lane: 'mid', team: 'red', type: 'defend1', x: 1064, y: 396 },
+      { lane: 'mid', team: 'red', type: 'defend2', x: 1117, y: 312 },
+      { lane: 'mid', team: 'red', type: 'last', x: 1223, y: 254 },
+      { lane: 'bot', team: 'red', type: 'defend1', x: 1536, y: 631 },
+      { lane: 'bot', team: 'red', type: 'defend2', x: 1432, y: 413 },
+      { lane: 'bot', team: 'red', type: 'last', x: 1420, y: 286 },
+      { lane: 'base', team: 'red', type: 'base', x: 1361, y: 162 },
+    ],
+    meetPoints: null,
   };
+
+  function defaultMeetPoints(lanePaths) {
+    return {
+      top: roundPoint(pointOnPath(lanePaths.top, 0.52)),
+      mid: roundPoint(pointOnPath(lanePaths.mid, 0.5)),
+      bot: roundPoint(pointOnPath(lanePaths.bot, 0.48)),
+    };
+  }
+
+  function roundPoint(p) {
+    return { x: Math.round(p.x), y: Math.round(p.y) };
+  }
+
+  function ensureMeetPoints(config) {
+    const paths = buildLanePaths(config);
+    if (config.meetPoints?.top && config.meetPoints?.mid && config.meetPoints?.bot) {
+      return config.meetPoints;
+    }
+    return defaultMeetPoints(paths);
+  }
 
   function buildLanePaths(config) {
     const { blueBase, redBase, lanes } = config;
@@ -148,9 +190,20 @@
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return JSON.parse(JSON.stringify(DEFAULT_MAP));
+      if (!raw) {
+        const fresh = JSON.parse(JSON.stringify(DEFAULT_MAP));
+        fresh.meetPoints = ensureMeetPoints(fresh);
+        return fresh;
+      }
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_MAP, ...parsed, lanes: parsed.lanes || DEFAULT_MAP.lanes };
+      const merged = {
+        ...DEFAULT_MAP,
+        ...parsed,
+        lanes: parsed.lanes || DEFAULT_MAP.lanes,
+        turrets: parsed.turrets?.length ? parsed.turrets : DEFAULT_MAP.turrets,
+      };
+      merged.meetPoints = ensureMeetPoints(merged);
+      return merged;
     } catch {
       return JSON.parse(JSON.stringify(DEFAULT_MAP));
     }
@@ -175,6 +228,8 @@
     buildTurrets,
     pointOnPath,
     defaultTurretPlacements,
+    defaultMeetPoints,
+    ensureMeetPoints,
     turretStats,
   };
 })(window);
