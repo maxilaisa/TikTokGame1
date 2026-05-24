@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TikTok Live War</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <canvas id="game" width="1920" height="1080"></canvas>
+
+    <header id="hud">
+      <div class="hud-left">
+        <h1>TIKTOK LIVE WAR</h1>
+        <p id="status">Enter username &amp; go LIVE</p>
+        <p class="hint">Follow = join · Like = shoot · Gift = reinforce</p>
+      </div>
+      <div class="hud-right">
+        <div>Allies: <span id="ally-count">0</span></div>
+        <div>Enemies: <span id="enemy-count">0</span></div>
+        <div>Kills: <span id="kills">0</span></div>
+      </div>
+    </header>
+
+    <section id="setup-panel" aria-label="Connect to TikTok LIVE">
+      <label for="username">TikTok username (no @)</label>
+      <input
+        id="username"
+        type="text"
+        placeholder="your_handle"
+        autocomplete="username"
+        spellcheck="false"
+      />
+      <button id="connect-btn" type="button">Connect to LIVE</button>
+      <p class="setup-note">
+        You must be LIVE on TikTok before connecting. Crop this panel in OBS after connect.
+      </p>
+    </section>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/game.js"></script>
+  </body>
+</html>
