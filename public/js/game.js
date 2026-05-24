@@ -1,8 +1,8 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
-const allyCountEl = document.getElementById('ally-count');
-const enemyCountEl = document.getElementById('enemy-count');
+const blueCountEl = document.getElementById('blue-count');
+const redCountEl = document.getElementById('red-count');
 const killsEl = document.getElementById('kills');
 const setupPanel = document.getElementById('setup-panel');
 const usernameInput = document.getElementById('username');
@@ -10,18 +10,56 @@ const connectBtn = document.getElementById('connect-btn');
 
 const W = canvas.width;
 const H = canvas.height;
-const GROUND_Y = H * 0.72;
+
+const TEAMS = { BLUE: 'blue', RED: 'red' };
+const LANES = ['top', 'mid', 'bot'];
+const SHOOT_RANGE = 220;
+const SHOOT_COOLDOWN = 28;
 
 const socket = io();
 const imageCache = new Map();
 
-let allies = [];
-let enemies = [];
+/** @type {HTMLImageElement | null} */
+let mapImage = null;
+const mapImg = new Image();
+mapImg.onload = () => {
+  mapImage = mapImg;
+};
+mapImg.src = '/assets/rift-map.png';
+
+const BLUE_BASE = { x: 200, y: H - 200 };
+const RED_BASE = { x: W - 200, y: 200 };
+
+const LANE_PATHS = {
+  top: [
+    BLUE_BASE,
+    { x: 320, y: H - 380 },
+    { x: 420, y: 420 },
+    { x: 1100, y: 260 },
+    RED_BASE,
+  ],
+  mid: [
+    BLUE_BASE,
+    { x: 520, y: H - 420 },
+    { x: W * 0.5, y: H * 0.5 },
+    { x: W - 520, y: 320 },
+    RED_BASE,
+  ],
+  bot: [
+    BLUE_BASE,
+    { x: 480, y: H - 120 },
+    { x: 1150, y: H - 160 },
+    { x: W - 420, y: H * 0.48 },
+    RED_BASE,
+  ],
+};
+
+let units = [];
 let bullets = [];
 let particles = [];
 let floatingTexts = [];
 let kills = 0;
-let enemySpawnTimer = 0;
+let redSpawnTimer = 0;
 
 function proxyAvatar(url) {
   if (!url) return null;
@@ -50,6 +88,15 @@ function loadImage(url) {
   return promise;
 }
 
+function pathForTeam(lane, team) {
+  const path = LANE_PATHS[lane];
+  return team === TEAMS.RED ? [...path].reverse() : path;
+}
+
+function pickLane() {
+  return LANES[Math.floor(Math.random() * LANES.length)];
+}
+
 function spawnFloatingText(x, y, text, color = '#fff') {
   floatingTexts.push({ x, y, text, color, life: 90, vy: -1.2 });
 }
@@ -68,83 +115,143 @@ function spawnParticles(x, y, color, n = 8) {
   }
 }
 
-function spawnAlly(uniqueId, profileUrl, x = 80, y = null) {
-  const ally = {
-    id: `${uniqueId}-${Date.now()}-${Math.random()}`,
-    uniqueId,
+function spawnUnit(team, uniqueId, profileUrl, lane = null) {
+  const chosenLane = lane || pickLane();
+  const path = pathForTeam(chosenLane, team);
+  const start = path[0];
+  const unit = {
+    id: `${team}-${uniqueId || 'ai'}-${Date.now()}-${Math.random()}`,
+    team,
+    uniqueId: uniqueId || null,
     profileUrl,
     img: null,
-    x,
-    y: y ?? GROUND_Y - 40 - Math.random() * 120,
-    hp: 100,
-    speed: 0.6 + Math.random() * 0.4,
-    radius: 22,
-    shootCooldown: 0,
+    lane: chosenLane,
+    path,
+    waypointIndex: 0,
+    x: start.x + (Math.random() - 0.5) * 40,
+    y: start.y + (Math.random() - 0.5) * 40,
+    hp: team === TEAMS.BLUE ? 100 : 70,
+    speed: 1.4 + Math.random() * 0.6,
+    radius: team === TEAMS.BLUE ? 20 : 17,
+    shootCooldown: Math.floor(Math.random() * SHOOT_COOLDOWN),
   };
-  loadImage(profileUrl).then((img) => {
-    ally.img = img;
-  });
-  allies.push(ally);
-  return ally;
+  if (profileUrl) {
+    loadImage(profileUrl).then((img) => {
+      unit.img = img;
+    });
+  }
+  units.push(unit);
+  return unit;
 }
 
-function spawnEnemy() {
-  enemies.push({
-    id: `enemy-${Date.now()}`,
-    x: W + 40,
-    y: GROUND_Y - 30 - Math.random() * 100,
-    hp: 60,
-    speed: 0.8 + Math.random() * 0.6,
-    radius: 18,
-  });
+function spawnRedUnit() {
+  spawnUnit(TEAMS.RED, null, null);
 }
 
-function spawnBullet(fromX, fromY, ownerId) {
+function spawnBullet(fromX, fromY, team, targetX, targetY, damage = 30) {
+  const dx = targetX - fromX;
+  const dy = targetY - fromY;
+  const dist = Math.hypot(dx, dy) || 1;
+  const speed = 11 + Math.random() * 3;
   bullets.push({
     x: fromX,
     y: fromY,
-    vx: 14 + Math.random() * 4,
-    vy: (Math.random() - 0.5) * 2,
-    ownerId,
-    radius: 4,
+    vx: (dx / dist) * speed,
+    vy: (dy / dist) * speed,
+    team,
+    damage,
+    radius: 5,
   });
 }
 
-function findAllyByUser(uniqueId) {
-  return allies.filter((a) => a.uniqueId === uniqueId);
+function unitsOnTeam(team) {
+  return units.filter((u) => u.team === team);
+}
+
+function findNearestEnemy(unit) {
+  const foes = unitsOnTeam(unit.team === TEAMS.BLUE ? TEAMS.RED : TEAMS.BLUE);
+  let best = null;
+  let bestDist = SHOOT_RANGE;
+  for (const foe of foes) {
+    const dist = Math.hypot(unit.x - foe.x, unit.y - foe.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = foe;
+    }
+  }
+  return best;
+}
+
+function findUnitsByUser(uniqueId, team = TEAMS.BLUE) {
+  return units.filter((u) => u.uniqueId === uniqueId && u.team === team);
+}
+
+function tryShoot(unit, target, damage = 30) {
+  if (unit.shootCooldown > 0) return;
+  spawnBullet(unit.x, unit.y, unit.team, target.x, target.y, damage);
+  unit.shootCooldown = SHOOT_COOLDOWN;
+}
+
+function moveAlongPath(unit) {
+  const idx = unit.waypointIndex;
+  const target = unit.path[Math.min(idx, unit.path.length - 1)];
+  const dx = target.x - unit.x;
+  const dy = target.y - unit.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist < 8 && idx < unit.path.length - 1) {
+    unit.waypointIndex++;
+    return;
+  }
+
+  if (dist > 1) {
+    unit.x += (dx / dist) * unit.speed;
+    unit.y += (dy / dist) * unit.speed;
+  }
 }
 
 function handleFollow({ uniqueId, profileUrl }) {
-  spawnAlly(uniqueId, profileUrl);
-  spawnFloatingText(120, GROUND_Y - 80, `@${uniqueId} joined the war!`, '#7ee8ff');
+  const lane = pickLane();
+  spawnUnit(TEAMS.BLUE, uniqueId, profileUrl, lane);
+  spawnFloatingText(BLUE_BASE.x, BLUE_BASE.y - 40, `@${uniqueId} joined Blue!`, '#7ee8ff');
 }
 
 function handleLike({ uniqueId, profileUrl, likeCount }) {
-  const userAllies = findAllyByUser(uniqueId);
+  const userUnits = findUnitsByUser(uniqueId, TEAMS.BLUE);
   const count = likeCount || 1;
   for (let i = 0; i < count; i++) {
-    if (userAllies.length) {
-      const ally = userAllies[i % userAllies.length];
-      spawnBullet(ally.x + ally.radius, ally.y, uniqueId);
+    const shooter = userUnits[i % userUnits.length];
+    if (shooter) {
+      const target = findNearestEnemy(shooter);
+      if (target) {
+        spawnBullet(shooter.x, shooter.y, TEAMS.BLUE, target.x, target.y, 40);
+      } else {
+        spawnBullet(shooter.x, shooter.y, TEAMS.BLUE, RED_BASE.x, RED_BASE.y, 40);
+      }
     } else {
-      spawnBullet(60 + i * 8, GROUND_Y - 60 - Math.random() * 80, uniqueId);
+      spawnBullet(
+        BLUE_BASE.x + i * 10,
+        BLUE_BASE.y,
+        TEAMS.BLUE,
+        RED_BASE.x,
+        RED_BASE.y,
+        35
+      );
     }
   }
-  if (!userAllies.length && profileUrl) {
-    spawnAlly(uniqueId, profileUrl, 40, GROUND_Y - 50);
+  if (!userUnits.length && profileUrl) {
+    spawnUnit(TEAMS.BLUE, uniqueId, profileUrl);
   }
 }
 
 function handleGift({ uniqueId, profileUrl, troopCount, giftName, diamonds }) {
   const n = troopCount || 1;
   for (let i = 0; i < n; i++) {
-    const row = Math.floor(i / 5);
-    const col = i % 5;
-    spawnAlly(uniqueId, profileUrl, 50 + col * 45, GROUND_Y - 90 - row * 50 - Math.random() * 30);
+    spawnUnit(TEAMS.BLUE, uniqueId, profileUrl, LANES[i % LANES.length]);
   }
   spawnFloatingText(
-    140,
-    GROUND_Y - 120,
+    BLUE_BASE.x + 40,
+    BLUE_BASE.y - 80,
     `@${uniqueId} +${n} troops (${giftName || 'gift'} · ${diamonds || '?'}💎)`,
     '#ffd56a'
   );
@@ -185,34 +292,53 @@ connectBtn.addEventListener('click', () => {
   socket.emit('connect-tiktok', username);
 });
 
-function drawBackground() {
-  const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-  sky.addColorStop(0, '#1e3a5f');
-  sky.addColorStop(1, '#2d1f3d');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, GROUND_Y);
+function drawMapFallback() {
+  ctx.fillStyle = '#1a2e1a';
+  ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = '#3d2818';
-  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.strokeStyle = 'rgba(80, 140, 200, 0.35)';
+  ctx.lineWidth = 28;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-  ctx.fillStyle = '#2a4a2a';
-  ctx.fillRect(0, GROUND_Y, W * 0.45, 12);
+  for (const lane of LANES) {
+    const path = LANE_PATHS[lane];
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+    ctx.stroke();
+  }
 
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(W * 0.78, GROUND_Y - 140, 120, 140);
-  ctx.fillStyle = '#5a3030';
+  ctx.fillStyle = 'rgba(30, 80, 160, 0.5)';
   ctx.beginPath();
-  ctx.moveTo(W * 0.78, GROUND_Y - 140);
-  ctx.lineTo(W * 0.78 + 60, GROUND_Y - 200);
-  ctx.lineTo(W * 0.78 + 120, GROUND_Y - 140);
-  ctx.closePath();
+  ctx.arc(BLUE_BASE.x, BLUE_BASE.y, 55, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#8b2020';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText('ENEMY BASE', W * 0.78 + 8, GROUND_Y - 150);
+  ctx.fillStyle = 'rgba(200, 50, 50, 0.5)';
+  ctx.beginPath();
+  ctx.arc(RED_BASE.x, RED_BASE.y, 55, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('BLUE', BLUE_BASE.x, BLUE_BASE.y + 6);
+  ctx.fillText('RED', RED_BASE.x, RED_BASE.y + 6);
 }
 
-function drawUnit(x, y, radius, color, img, label) {
+function drawBackground() {
+  if (mapImage) {
+    ctx.drawImage(mapImage, 0, 0, W, H);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    drawMapFallback();
+  }
+}
+
+function drawUnit(unit) {
+  const color = unit.team === TEAMS.BLUE ? '#25f4ee' : '#fe2c55';
+  const { x, y, radius, img, uniqueId } = unit;
+
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
@@ -225,35 +351,40 @@ function drawUnit(x, y, radius, color, img, label) {
   if (img) {
     ctx.drawImage(img, x - radius, y - radius, radius * 2, radius * 2);
   } else {
-    ctx.fillStyle = '#445';
+    ctx.fillStyle = unit.team === TEAMS.BLUE ? '#2a4a6a' : '#6a2a2a';
     ctx.fill();
   }
   ctx.restore();
 
-  if (label) {
+  const hpW = 36;
+  const maxHp = unit.team === TEAMS.BLUE ? 100 : 70;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x - hpW / 2, y - radius - 12, hpW, 4);
+  ctx.fillStyle = unit.team === TEAMS.BLUE ? '#2ecc71' : '#e74c3c';
+  ctx.fillRect(x - hpW / 2, y - radius - 12, hpW * (unit.hp / maxHp), 4);
+
+  if (uniqueId) {
     ctx.fillStyle = '#fff';
-    ctx.font = '11px sans-serif';
+    ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
-    const short = label.length > 12 ? `${label.slice(0, 11)}…` : label;
-    ctx.fillText(short, x, y + radius + 14);
+    const short = uniqueId.length > 10 ? `${uniqueId.slice(0, 9)}…` : uniqueId;
+    ctx.fillText(short, x, y + radius + 12);
   }
 }
 
 function update() {
-  enemySpawnTimer++;
-  if (enemySpawnTimer > 120) {
-    enemySpawnTimer = 0;
-    if (enemies.length < 40) spawnEnemy();
+  redSpawnTimer++;
+  if (redSpawnTimer > 90) {
+    redSpawnTimer = 0;
+    if (unitsOnTeam(TEAMS.RED).length < 35) spawnRedUnit();
   }
 
-  for (const ally of allies) {
-    ally.x += ally.speed;
-    ally.x = Math.min(ally.x, W * 0.55);
-    if (ally.shootCooldown > 0) ally.shootCooldown--;
-  }
+  for (const unit of units) {
+    moveAlongPath(unit);
+    if (unit.shootCooldown > 0) unit.shootCooldown--;
 
-  for (const enemy of enemies) {
-    enemy.x -= enemy.speed;
+    const target = findNearestEnemy(unit);
+    if (target) tryShoot(unit, target);
   }
 
   for (const bullet of bullets) {
@@ -261,37 +392,37 @@ function update() {
     bullet.y += bullet.vy;
   }
 
-  bullets = bullets.filter((b) => b.x < W + 20 && b.x > -20);
-  enemies = enemies.filter((e) => e.x > -50 && e.hp > 0);
-  allies = allies.filter((a) => a.hp > 0 && a.x > -30);
+  bullets = bullets.filter((b) => b.x > -40 && b.x < W + 40 && b.y > -40 && b.y < H + 40);
 
   for (const bullet of bullets) {
-    for (const enemy of enemies) {
-      const dx = bullet.x - enemy.x;
-      const dy = bullet.y - enemy.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < bullet.radius + enemy.radius) {
-        enemy.hp -= 35;
-        bullet.x = -999;
-        spawnParticles(enemy.x, enemy.y, '#ff6b4a', 5);
-        if (enemy.hp <= 0) {
+    const foeTeam = bullet.team === TEAMS.BLUE ? TEAMS.RED : TEAMS.BLUE;
+    for (const unit of unitsOnTeam(foeTeam)) {
+      const dist = Math.hypot(bullet.x - unit.x, bullet.y - unit.y);
+      if (dist < bullet.radius + unit.radius) {
+        unit.hp -= bullet.damage;
+        bullet.x = -9999;
+        spawnParticles(unit.x, unit.y, bullet.team === TEAMS.BLUE ? '#7ee8ff' : '#ff6b4a', 5);
+        if (unit.hp <= 0 && bullet.team === TEAMS.BLUE) {
           kills++;
-          spawnParticles(enemy.x, enemy.y, '#ffaa00', 12);
+          spawnParticles(unit.x, unit.y, '#ffaa00', 12);
         }
         break;
       }
     }
   }
 
-  for (const ally of allies) {
-    for (const enemy of enemies) {
-      const dist = Math.hypot(ally.x - enemy.x, ally.y - enemy.y);
-      if (dist < ally.radius + enemy.radius) {
-        ally.hp -= 0.8;
-        enemy.hp -= 0.5;
+  for (const a of units) {
+    for (const b of units) {
+      if (a.team === b.team || a.id >= b.id) continue;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (dist < a.radius + b.radius) {
+        a.hp -= 0.4;
+        b.hp -= 0.4;
       }
     }
   }
+
+  units = units.filter((u) => u.hp > 0);
 
   particles = particles.filter((p) => {
     p.x += p.vx;
@@ -306,8 +437,8 @@ function update() {
     return t.life > 0;
   });
 
-  allyCountEl.textContent = String(allies.length);
-  enemyCountEl.textContent = String(enemies.length);
+  blueCountEl.textContent = String(unitsOnTeam(TEAMS.BLUE).length);
+  redCountEl.textContent = String(unitsOnTeam(TEAMS.RED).length);
   killsEl.textContent = String(kills);
 }
 
@@ -315,26 +446,16 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
 
-  for (const enemy of enemies) {
-    drawUnit(enemy.x, enemy.y, enemy.radius, '#c0392b', null, null);
-  }
-
-  for (const ally of allies) {
-    drawUnit(ally.x, ally.y, ally.radius, '#25f4ee', ally.img, ally.uniqueId);
-    const hpW = 40;
-    ctx.fillStyle = '#222';
-    ctx.fillRect(ally.x - hpW / 2, ally.y - ally.radius - 10, hpW, 4);
-    ctx.fillStyle = '#2ecc71';
-    ctx.fillRect(ally.x - hpW / 2, ally.y - ally.radius - 10, hpW * (ally.hp / 100), 4);
+  for (const unit of units) {
+    drawUnit(unit);
   }
 
   for (const bullet of bullets) {
-    ctx.fillStyle = '#ffe566';
+    ctx.fillStyle = bullet.team === TEAMS.BLUE ? '#7ee8ff' : '#ff8866';
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowColor = '#ffe566';
-    ctx.shadowBlur = 8;
     ctx.fill();
     ctx.shadowBlur = 0;
   }
@@ -362,6 +483,5 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-spawnEnemy();
-spawnEnemy();
+for (let i = 0; i < 4; i++) spawnRedUnit();
 loop();

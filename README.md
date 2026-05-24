@@ -37,7 +37,7 @@ Health check: `GET /health`
 
 - **Backend** (`server.js`) uses [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector) to listen for follow, like, and gift events from your live room.
 - **WebSocket** (Socket.IO) pushes events to the browser game in real time.
-- **Frontend** (`public/js/game.js`) renders a side-scrolling war: viewers march right, enemies spawn from the enemy base, likes shoot bullets, gifts reinforce troops with avatars.
+- **Frontend** (`public/js/game.js`) renders a **Summoner's Rift–style** top-down map: **Blue** (your viewers) vs **Red** (AI) march along three lanes, auto-shoot while moving, likes fire extra shots, gifts reinforce Blue troops with avatars.
 
 ## Tips for streaming
 
