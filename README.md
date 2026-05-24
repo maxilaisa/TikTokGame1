@@ -4,9 +4,9 @@ Interactive overlay game for TikTok LIVE streams, designed for **OBS / TikTok St
 
 | Viewer action | In-game effect |
 |---------------|----------------|
-| **Follow** | Joins your army as a soldier with their profile picture |
-| **Like** | Fires bullets (more likes = more shots) |
-| **Gift / donation** | Spawns extra troops (scaled by gift diamond value) |
+| **Follow** | **Joins the game** as your champion (avatar on the map) — must follow your account |
+| **Like** | Fires shots (only if they already followed and are in-game) |
+| **Gift / donation** | Heals + bonus shots for their champion (must be in-game) |
 
 ## Quick start (local)
 
@@ -21,18 +21,6 @@ npm start
 
 4. Open `http://localhost:3000`, enter your username if needed, click **Connect to LIVE**.
 5. Add a **Browser Source** in OBS pointing at your game URL (1920×1080 recommended). Crop out the connect panel after connecting.
-
-### Align lanes to the map image
-
-Open **`/map-editor.html`** (or click **Map editor** on the game HUD):
-
-1. **Cursor** shows live `x, y` (1920×1080).
-2. **Click** places a point; **Last click** shows `{ x: …, y: … }`.
-3. Set **Blue base** / **Red base**, then add **Top / Mid / Bot** waypoints along each lane (blue → red).
-4. Click **Apply to game**, then refresh the main game (or use **Open game**).
-5. Add `?paths` to the game URL to draw lane lines on top while testing.
-
-Copy the JSON and send the coordinates if you want them baked into the repo defaults.
 
 ## Deploy on Railway
 
@@ -49,7 +37,7 @@ Health check: `GET /health`
 
 - **Backend** (`server.js`) uses [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector) to listen for follow, like, and gift events from your live room.
 - **WebSocket** (Socket.IO) pushes events to the browser game in real time.
-- **Frontend** (`public/js/game.js`) renders a **Summoner's Rift–style** top-down map: **Blue** (your viewers) vs **Red** (AI) march along three lanes, auto-shoot while moving, likes fire extra shots, gifts reinforce Blue troops with avatars.
+- **Frontend** (`public/js/game.js`) — **3 AI minions per team per lane** (melee in front, mage, marksman) with attack animations; **defending** and **main** turrets (place via `/map-editor.html`). Turrets prioritize minions over players (MOBA aggro). **Follow** to join as a champion.
 
 ## Tips for streaming
 

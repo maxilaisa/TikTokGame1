@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Map path editor — TikTok Live War</title>
+    <title>Turret placement — TikTok Live War</title>
     <link rel="stylesheet" href="/css/style.css" />
     <link rel="stylesheet" href="/css/map-editor.css" />
   </head>
@@ -11,10 +11,8 @@
     <canvas id="editor-canvas" width="1920" height="1080"></canvas>
 
     <aside id="editor-panel">
-      <h1>Map path editor</h1>
-      <p class="editor-lead">
-        Click the map to place points. Coordinates are <strong>1920×1080</strong> (same as the game).
-      </p>
+      <h1>Turret editor</h1>
+      <p class="editor-lead">Place <strong>defending</strong> (outer) and <strong>main</strong> (inner) turrets. Coords are 1920×1080.</p>
 
       <div class="coord-box">
         <div>Cursor</div>
@@ -26,13 +24,6 @@
       </div>
 
       <fieldset>
-        <legend>Click mode</legend>
-        <label><input type="radio" name="mode" value="lane" checked /> Lane waypoint</label>
-        <label><input type="radio" name="mode" value="blue" /> Set Blue base</label>
-        <label><input type="radio" name="mode" value="red" /> Set Red base</label>
-      </fieldset>
-
-      <fieldset>
         <legend>Lane</legend>
         <div class="lane-btns">
           <button type="button" class="lane-btn active" data-lane="top">Top</button>
@@ -41,26 +32,32 @@
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend>Place turret (click map)</legend>
+        <button type="button" class="place-btn" data-mode="blue-defend">Blue defend</button>
+        <button type="button" class="place-btn" data-mode="blue-main">Blue main</button>
+        <button type="button" class="place-btn" data-mode="red-defend">Red defend</button>
+        <button type="button" class="place-btn active" data-mode="red-main">Red main</button>
+      </fieldset>
+
       <div class="editor-actions">
-        <button type="button" id="undo-btn">Undo last (lane)</button>
-        <button type="button" id="clear-lane-btn">Clear lane</button>
+        <button type="button" id="undo-btn">Undo last</button>
+        <button type="button" id="clear-btn">Clear all turrets</button>
       </div>
 
-      <ul id="point-list" class="point-list"></ul>
+      <ul id="turret-list" class="point-list"></ul>
 
       <div class="editor-actions primary">
         <button type="button" id="apply-btn">Apply to game</button>
-        <button type="button" id="preview-game-btn">Open game</button>
+        <button type="button" id="open-game-btn">Open game</button>
         <button type="button" id="reset-btn">Reset defaults</button>
       </div>
 
-      <label class="export-label" for="export-json">Copy this and send to adjust in code:</label>
-      <textarea id="export-json" readonly rows="12"></textarea>
+      <label class="export-label" for="export-json">JSON (send to dev):</label>
+      <textarea id="export-json" readonly rows="10"></textarea>
       <button type="button" id="copy-btn">Copy JSON</button>
 
-      <p class="editor-footer">
-        <a href="/">← Back to game</a>
-      </p>
+      <p class="editor-footer"><a href="/">← Back to game</a></p>
     </aside>
 
     <div id="toast" hidden></div>
