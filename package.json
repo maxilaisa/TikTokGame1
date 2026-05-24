@@ -1,0 +1,20 @@
+{
+  "name": "tiktok-live-war",
+  "version": "1.0.0",
+  "description": "TikTok LIVE interactive war game — follow to join, likes shoot, gifts spawn troops",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "tiktok-live-connector": "^1.2.3"
+  }
+}
